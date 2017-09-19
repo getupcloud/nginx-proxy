@@ -1,0 +1,47 @@
+#!/bin/bash
+
+
+## PROXY_ROUTE_TO_SERVICE="<route1>,<route2>,<route3>,<service1:port> <route4>,<route5>,<service2:port>"
+if [ -z "${PROXY_ROUTE_TO_SERVICE}" ]; then
+    echo "No backend service defined" >> index.html
+fi
+
+BASIC_AUTH_DIR=${BASIC_AUTH_DIR:-/opt/app-root/auth}
+CFG_DIR=${CFG_DIR:-/opt/app-root/etc/nginx.d}
+
+for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
+    routes="${r2s%,*}"
+    routes="${routes/,/ }"
+    service=${r2s##*,}
+    filename=${r2s//,/_}
+    filename=${filename//:/_}
+    echo "Creating server config: ${routes} -> ${service} (${filename})"
+
+    if [ -f "${BASIC_AUTH_DIR}/.htpasswd-${service%:*}" ]; then
+        auth_config_type="auth_basic              \"Basic Auth - ${service%:*}\";"
+        auth_config_file="auth_basic_user_file    \"${BASIC_AUTH_DIR}/.htpasswd-${service%:*}\";"
+    else
+        auth_config_type=""
+        auth_config_file=""
+    fi
+
+    cat > ${CFG_DIR}/${filename}.conf <<EOF
+        server {
+            server_name ${routes};
+            listen 0.0.0.0:8080;
+
+            location / {
+                ${auth_config_type}
+                ${auth_config_file}
+                proxy_connect_timeout   300;
+                proxy_send_timeout      300;
+                proxy_read_timeout      300;
+                send_timeout            300;
+                proxy_set_header        Authorization "";
+                proxy_pass              http://${service}/;
+            }
+        }
+EOF
+done
+
+source $STI_SCRIPTS_PATH/run
