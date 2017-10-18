@@ -7,7 +7,6 @@ if [ -z "${PROXY_ROUTE_TO_SERVICE}" ]; then
 fi
 
 BASIC_AUTH_DIR=${BASIC_AUTH_DIR:-/opt/app-root/auth}
-CFG_DIR=${CFG_DIR:-/opt/app-root/etc/nginx.d}
 
 for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
     routes="${r2s%,*}"
@@ -20,15 +19,20 @@ for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
     if [ -f "${BASIC_AUTH_DIR}/.htpasswd-${service%:*}" ]; then
         auth_config_type="auth_basic              \"Basic Auth - ${service%:*}\";"
         auth_config_file="auth_basic_user_file    \"${BASIC_AUTH_DIR}/.htpasswd-${service%:*}\";"
+    elif [ -f "${BASIC_AUTH_DIR}/.htpasswd" ]; then
+        auth_config_type="auth_basic              \"Basic Auth - ${service%:*}\";"
+        auth_config_file="auth_basic_user_file    \"${BASIC_AUTH_DIR}/.htpasswd\";"
     else
         auth_config_type=""
         auth_config_file=""
     fi
 
-    cat > ${CFG_DIR}/${filename}.conf <<EOF
+    cat > ${NGINX_CONFIGURATION_PATH}/${filename}.conf <<EOF
         server {
             server_name ${routes};
             listen 0.0.0.0:8080;
+            access_log $HOME/access.log;
+            error_log $HOME/error.log;
 
             location / {
                 ${auth_config_type}
