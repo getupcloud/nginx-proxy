@@ -1,31 +1,35 @@
 #!/bin/bash
 
-
 ## PROXY_ROUTE_TO_SERVICE="<route1>,<route2>,<route3>,<service1:port> <route4>,<route5>,<service2:port>"
 if [ -z "${PROXY_ROUTE_TO_SERVICE}" ]; then
     echo "No backend service defined" >> index.html
 fi
 
-BASIC_AUTH_DIR=${BASIC_AUTH_DIR:-/opt/app-root/auth}
+PROXY_CONF_DIR=${PROXY_CONF_DIR:-/opt/app-root/proxy}
 
 for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
     routes="${r2s%,*}"
     routes="${routes/,/ }"
     service=${r2s##*,}
+    service_name=${service%:*}
     filename=${r2s//,/_}
     filename=${filename//:/_}
     echo "Creating server config: ${routes} -> ${service} (${filename})"
 
-    if [ -f "${BASIC_AUTH_DIR}/.htpasswd-${service%:*}" ]; then
-        auth_config_type="auth_basic              \"Basic Auth - ${service%:*}\";"
-        auth_config_file="auth_basic_user_file    \"${BASIC_AUTH_DIR}/.htpasswd-${service%:*}\";"
-    elif [ -f "${BASIC_AUTH_DIR}/.htpasswd" ]; then
-        auth_config_type="auth_basic              \"Basic Auth - ${service%:*}\";"
-        auth_config_file="auth_basic_user_file    \"${BASIC_AUTH_DIR}/.htpasswd\";"
+    if [ -f "${PROXY_CONF_DIR}/.htpasswd-${service_name}" ]; then
+        auth_config_type="auth_basic              \"Basic Auth - ${service_name}\";"
+        auth_config_file="auth_basic_user_file    \"${PROXY_CONF_DIR}/.htpasswd-${service_name}\";"
+    elif [ -f "${PROXY_CONF_DIR}/.htpasswd" ]; then
+        auth_config_type="auth_basic              \"Basic Auth - ${service_name}\";"
+        auth_config_file="auth_basic_user_file    \"${PROXY_CONF_DIR}/.htpasswd\";"
     else
         auth_config_type=""
         auth_config_file=""
     fi
+
+    [ -e "${PROXY_CONF_DIR}/${service_name}.pre" ] && INCLUDE_PRE="include ${PROXY_CONF_DIR}/${service_name}.pre;" || INCLUDE_PRE=""
+    [ -e "${PROXY_CONF_DIR}/${service_name}.on" ] && INCLUDE_ON="include ${PROXY_CONF_DIR}/${service_name}.on;" || INCLUDE_ON=""
+    [ -e "${PROXY_CONF_DIR}/${service_name}.post" ] && INCLUDE_POST="include ${PROXY_CONF_DIR}/${service_name}.post;" || INCLUDE_POST=""
 
     cat > ${NGINX_CONFIGURATION_PATH}/${filename}.conf <<EOF
         server {
@@ -34,6 +38,8 @@ for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
             access_log $HOME/access.log;
             error_log $HOME/error.log;
 
+            ${INCLUDE_PRE}
+
             location / {
                 ${auth_config_type}
                 ${auth_config_file}
@@ -41,9 +47,14 @@ for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
                 proxy_send_timeout      300;
                 proxy_read_timeout      300;
                 send_timeout            300;
-                proxy_set_header        Authorization "";
+                proxy_set_header        Authorization "${service}";
+
+                ${INCLUDE_ON}
+
                 proxy_pass              http://${service}/;
             }
+
+            ${INCLUDE_POST}
         }
 EOF
 done
