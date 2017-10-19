@@ -47,7 +47,7 @@ for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
                 proxy_send_timeout      300;
                 proxy_read_timeout      300;
                 send_timeout            300;
-                proxy_set_header        Authorization "${service}";
+                proxy_set_header        Authorization "";
 
                 ${INCLUDE_ON}
 
