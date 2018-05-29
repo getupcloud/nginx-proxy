@@ -51,7 +51,7 @@ for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
 
                 ${INCLUDE_ON}
 
-                proxy_pass              http://${service}/;
+                proxy_pass              ${BACKEND_SCHEME:-http}://${service}/;
             }
 
             ${INCLUDE_POST}
