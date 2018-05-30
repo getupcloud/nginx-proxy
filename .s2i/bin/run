@@ -36,8 +36,8 @@ for r2s in ${PROXY_ROUTE_TO_SERVICE}; do
             server_name ${routes};
             listen 0.0.0.0:8080;
             access_log $HOME/access.log;
-            error_log $HOME/error.log;
-
+            error_log $HOME/error.log info;
+            
             ${INCLUDE_PRE}
 
             location / {
